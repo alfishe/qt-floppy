@@ -25,7 +25,6 @@ void MainWindow::setupUI() {
 void MainWindow::createConnections() {
     // Connect toolbar actions
     connect(ui->actionPlay, &QAction::triggered, this, &MainWindow::onPlayPauseClicked);
-    connect(ui->actionStop, &QAction::triggered, this, &MainWindow::onStopClicked);
     connect(ui->actionReset, &QAction::triggered, this, &MainWindow::onResetClicked);
 
     // Connect speed combo box
@@ -49,18 +48,12 @@ void MainWindow::onPlayPauseClicked() {
     }
 }
 
-void MainWindow::onStopClicked() {
+void MainWindow::onResetClicked() {
+    // Stop all animations
     isPlaying = false;
     animationTimer->stop();
-    // Reset animation state
-    ui->floppyWidget->setRotationAngle(0);
-    ui->floppyWidget->setIndexPulse(false);
-    // Stop the head animation
     ui->floppyWidget->stopHeadAnimation();
-}
 
-void MainWindow::onResetClicked() {
-    onStopClicked();
     // Reset all states
     ui->floppyWidget->setTrack(0);
     ui->floppyWidget->setSide(0);

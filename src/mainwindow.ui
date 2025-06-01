@@ -59,7 +59,6 @@
     <bool>false</bool>
    </attribute>
    <addaction name="actionPlay"/>
-   <addaction name="actionStop"/>
    <addaction name="actionReset"/>
    <addaction name="separator"/>
    <widget class="QLabel" name="speedLabel">
@@ -117,14 +116,6 @@
    </property>
    <property name="toolTip">
     <string>Start/Stop Animation</string>
-   </property>
-  </action>
-  <action name="actionStop">
-   <property name="text">
-    <string>Stop</string>
-   </property>
-   <property name="toolTip">
-    <string>Stop Animation</string>
    </property>
   </action>
   <action name="actionReset">
