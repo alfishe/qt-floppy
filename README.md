@@ -46,6 +46,6 @@ After building, run the executable from the `build` directory:
 
 ## License
 
-[MIT License](LICENSE) (or specify your license here)
+[MIT License](LICENSE)
 
 --- 
