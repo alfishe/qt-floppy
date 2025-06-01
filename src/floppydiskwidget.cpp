@@ -478,19 +478,25 @@ void FloppyDiskWidget::drawTracks(QPainter &painter, const QRectF& envelopeRect)
     
     // Shift all tracks 10% closer to the center
     m_minTrackRadius = scale * 0.8; // Decreased by 10% to shift tracks closer to center
-    m_maxTrackRadius = scale * 2.1; // Also decreased by ~10% to maintain proportions
     int numTracks = isDoubleDensity ? 80 : 40;
-    // Increase track spacing by 20% to cover more area within the magnetic disk
-    qreal trackSpacing = 1.2 * ((m_maxTrackRadius - m_minTrackRadius) / numTracks);
+    
+    // Calculate track spacing based on available space and number of tracks
+    // We'll determine the max radius dynamically after drawing all tracks
+    qreal initialMaxRadius = scale * 2.3; // Initial estimate
+    m_trackSpacing = 1.15 * ((initialMaxRadius - m_minTrackRadius) / numTracks);
     
     painter.save();
     
-    // Draw all tracks with blue/violet color (restore original color)
+    // Draw all tracks with blue/violet color
     painter.setPen(QPen(QColor(100, 100, 255, 120), scale * 0.01));
+    qreal radius = 0;
     for (int i = 0; i <= numTracks; i++) {
-        qreal radius = m_minTrackRadius + i * trackSpacing;
+        radius = m_minTrackRadius + i * m_trackSpacing;
         painter.drawEllipse(center, radius, radius);
     }
+    
+    // Use the last calculated radius as the maximum track radius
+    m_maxTrackRadius = radius;
     
     // Highlight current track if enabled - fill the entire track with green
     if (m_highlightTrack && currentTrack >= 0 && currentTrack < numTracks) {
@@ -498,8 +504,8 @@ void FloppyDiskWidget::drawTracks(QPainter &painter, const QRectF& envelopeRect)
         qreal currentTrackIndex = numTracks - currentTrack;
         
         // Store these values in class fields for use in other methods
-        m_trackInnerRadius = m_minTrackRadius + (currentTrackIndex - 0.5) * trackSpacing;
-        m_trackOuterRadius = m_minTrackRadius + (currentTrackIndex + 0.5) * trackSpacing;
+        m_trackInnerRadius = m_minTrackRadius + (currentTrackIndex - 0.5) * m_trackSpacing;
+        m_trackOuterRadius = m_minTrackRadius + (currentTrackIndex + 0.5) * m_trackSpacing;
         
         // Create a path for the track ring
         QPainterPath trackPath;
@@ -512,7 +518,7 @@ void FloppyDiskWidget::drawTracks(QPainter &painter, const QRectF& envelopeRect)
         painter.drawPath(trackPath);
         
         // Draw track outline
-        qreal currentRadius = m_minTrackRadius + currentTrackIndex * trackSpacing;
+        qreal currentRadius = m_minTrackRadius + currentTrackIndex * m_trackSpacing;
         painter.setPen(QPen(QColor(0, 200, 0, 180), scale * 0.02));
         painter.setBrush(Qt::NoBrush);
         painter.drawEllipse(center, currentRadius, currentRadius);
@@ -578,11 +584,25 @@ void FloppyDiskWidget::drawHighlightedSector(QPainter &painter, const QRectF& en
     if (m_highlightSector && m_currentSector >= 0 && m_currentSector < sectors) {
         painter.save();
         
-        // Use the track radius values that were calculated and stored in drawTracks
-        // This ensures perfect synchronization between track highlighting and sector highlighting
-        qreal innerRadius = m_trackInnerRadius;
-        qreal outerRadius = m_trackOuterRadius;
-        // Note: We also use m_minTrackRadius and m_maxTrackRadius for the sector boundaries
+        // We'll fill the entire sector from min to max radius
+        // But we'll still highlight the active track with a more intense color
+        
+        // Make sure we have valid track inner/outer radius values
+        if (m_trackInnerRadius <= 0 || m_trackOuterRadius <= 0) {
+            // Calculate default values if they're not set
+            int numTracks = isDoubleDensity ? 80 : 40;
+            // Use the class field for track spacing
+            if (m_trackSpacing <= 0) {
+                m_trackSpacing = 1.15 * ((m_maxTrackRadius - m_minTrackRadius) / numTracks);
+            }
+            qreal currentTrackIndex = numTracks - currentTrack;
+            m_trackInnerRadius = m_minTrackRadius + (currentTrackIndex - 0.5) * m_trackSpacing;
+            m_trackOuterRadius = m_minTrackRadius + (currentTrackIndex + 0.5) * m_trackSpacing;
+        }
+        
+        // Use the class member variables for consistent track highlighting
+        qreal innerRadius = m_minTrackRadius; // Use minimum radius for the entire sector
+        qreal outerRadius = m_maxTrackRadius; // Use maximum radius for the entire sector
         
         // Calculate the sector that should be highlighted under the head
         // This makes the sector static below the head
@@ -635,15 +655,22 @@ void FloppyDiskWidget::drawHighlightedSector(QPainter &painter, const QRectF& en
         // Apply the sector clip path
         painter.setClipPath(clipPath);
         
-        // Now draw a ring that will be clipped to the sector shape
-        QPainterPath ringPath;
-        ringPath.addEllipse(center, outerRadius, outerRadius);
-        ringPath.addEllipse(center, innerRadius, innerRadius);
+        // First draw the entire sector from min to max radius with semi-transparent red
+        QPainterPath fullSectorPath;
+        fullSectorPath.addEllipse(center, outerRadius, outerRadius);
+        fullSectorPath.addEllipse(center, innerRadius, innerRadius);
         
-        // Fill the ring with solid non-transparent red
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(255, 0, 0)); // Solid red, no transparency
-        painter.drawPath(ringPath);
+        painter.setBrush(QColor(255, 0, 0, 60)); // Light semi-transparent red for the full sector
+        painter.drawPath(fullSectorPath);
+        
+        // Then highlight the active track portion with a more intense red
+        QPainterPath activeTrackPath;
+        activeTrackPath.addEllipse(center, m_trackOuterRadius, m_trackOuterRadius);
+        activeTrackPath.addEllipse(center, m_trackInnerRadius, m_trackInnerRadius);
+        
+        painter.setBrush(QColor(255, 0, 0, 180)); // More intense red for the active track
+        painter.drawPath(activeTrackPath);
         
         // Restore painter state
         painter.restore();
@@ -684,36 +711,47 @@ void FloppyDiskWidget::drawHead(QPainter &painter, const QRectF& envelopeRect)
     if (m_isHeadAnimating) {
         // When animating, use the animation step to determine position
         qreal normalizedStep = (qreal)m_animationStep / (ANIMATION_STEPS - 1);
+        // Ensure normalizedStep is within valid bounds [0.0, 1.0]
+        normalizedStep = qBound(0.0, normalizedStep, 1.0);
         mappedTrack = static_cast<int>(normalizedStep * (numTracks - 1));
     } else {
-        mappedTrack = currentTrack;
+        // Ensure currentTrack is within valid bounds [0, numTracks-1]
+        mappedTrack = qBound(0, currentTrack, numTracks - 1);
     }
     
-    // Invert the position calculation so track 0 is at the bottom (outermost)
-    qreal trackFraction = (numTracks > 1) ? (qreal)mappedTrack / (numTracks - 1) : 0.0;
-    
-    // If we're on the same track as the highlighted track and highlighting is enabled,
-    // use the stored track radius values for perfect alignment
+    // Make sure we have valid radius values before calculating
+    if (m_maxTrackRadius <= m_minTrackRadius) {
+        // If radii aren't initialized yet, use safe defaults
+        m_minTrackRadius = scale * 0.8;
+        m_maxTrackRadius = scale * 2.3;
+        // Also initialize track spacing
+        m_trackSpacing = 1.15 * ((m_maxTrackRadius - m_minTrackRadius) / numTracks);
+    }
     qreal trackRadius;
     
-    if (m_highlightTrack && mappedTrack == currentTrack) {
-        // Use the center radius of the highlighted track (average of inner and outer)
-        trackRadius = (m_trackInnerRadius + m_trackOuterRadius) / 2.0;
-    } else {
-        // Otherwise, calculate the radius using the class fields
-        // Increase track spacing by 20% to cover more area within the magnetic disk
-        qreal trackSpacing = 1.2 * ((m_maxTrackRadius - m_minTrackRadius) / numTracks);
-        
-        // Calculate the track radius for the current track
-        // Use the same formula as in drawTracks but invert the track numbering
-        trackRadius = m_minTrackRadius + (numTracks - mappedTrack) * trackSpacing;
-        
-        // For track 0, we need to position the head exactly at the outermost track
-        if (mappedTrack == 0) {
-            // For track 0, use the exact radius of the outermost track
-            trackRadius = m_maxTrackRadius;
-        }
+    // Ensure we have valid track inner/outer radius values
+    if (m_trackInnerRadius <= 0 || m_trackOuterRadius <= 0) {
+        // Calculate default values if they're not set
+        qreal currentTrackIndex = numTracks - mappedTrack;
+        m_trackInnerRadius = m_minTrackRadius + (currentTrackIndex - 0.5) * m_trackSpacing;
+        m_trackOuterRadius = m_minTrackRadius + (currentTrackIndex + 0.5) * m_trackSpacing;
     }
+    
+    // Calculate the radius based on the track
+    if (m_highlightTrack && mappedTrack == currentTrack) {
+        // If we're on the highlighted track, use the center of the highlighted track
+        trackRadius = (m_trackInnerRadius + m_trackOuterRadius) / 2.0;
+    } else if (mappedTrack == 0) {
+        // For track 0 (outermost track), use the exact maximum radius
+        trackRadius = m_maxTrackRadius;
+    } else {
+        // For all other tracks, calculate based on the class fields
+        // Use the same formula as in drawTracks but invert the track numbering
+        trackRadius = m_minTrackRadius + (numTracks - mappedTrack) * m_trackSpacing;
+    }
+    
+    // Ensure the radius is within valid bounds
+    trackRadius = qBound(m_minTrackRadius, trackRadius, m_maxTrackRadius);
     
     // Calculate the intersection point of this track with the vertical line at 90 degrees (top)
     qreal trackY = center.y() + trackRadius * qSin(qDegreesToRadians(90.0));

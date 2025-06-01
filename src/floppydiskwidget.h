@@ -74,6 +74,7 @@ private:
     // Track radius constants - used across all methods
     qreal m_minTrackRadius;
     qreal m_maxTrackRadius;
+    qreal m_trackSpacing; // Track spacing factor
     
     // Animation properties
     QTimer* m_animationTimer = nullptr;
