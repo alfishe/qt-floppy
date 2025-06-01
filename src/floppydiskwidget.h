@@ -67,6 +67,10 @@ private:
     bool m_highlightTrack;
     bool m_highlightSector;
     
+    // Track radius calculations - stored to avoid duplication
+    qreal m_trackInnerRadius;
+    qreal m_trackOuterRadius;
+    
     // Animation properties
     QTimer* m_animationTimer = nullptr;
     QTimer* m_sideAnimationTimer = nullptr;
@@ -78,6 +82,8 @@ private:
     void drawDisk(QPainter &painter, const QRectF& envelopeRect);
     void drawTracks(QPainter &painter, const QRectF& envelopeRect);
     void drawSectors(QPainter &painter, const QRectF& envelopeRect);
+    void drawSectorBoundaries(QPainter &painter, const QRectF& envelopeRect);
+    void drawHighlightedSector(QPainter &painter, const QRectF& envelopeRect);
     void drawIndexHole(QPainter &painter);
     void drawHead(QPainter &painter, const QRectF& envelopeRect);
     void drawStatus(QPainter &painter);

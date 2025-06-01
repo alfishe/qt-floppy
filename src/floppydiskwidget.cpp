@@ -493,13 +493,15 @@ void FloppyDiskWidget::drawTracks(QPainter &painter, const QRectF& envelopeRect)
     if (m_highlightTrack && currentTrack >= 0 && currentTrack < numTracks) {
         // Calculate inner and outer radius of the current track
         qreal currentTrackIndex = numTracks - currentTrack;
-        qreal innerRadius = minRadius + (currentTrackIndex - 0.5) * trackSpacing;
-        qreal outerRadius = minRadius + (currentTrackIndex + 0.5) * trackSpacing;
+        
+        // Store these values in class fields for use in other methods
+        m_trackInnerRadius = minRadius + (currentTrackIndex - 0.5) * trackSpacing;
+        m_trackOuterRadius = minRadius + (currentTrackIndex + 0.5) * trackSpacing;
         
         // Create a path for the track ring
         QPainterPath trackPath;
-        trackPath.addEllipse(center, outerRadius, outerRadius);
-        trackPath.addEllipse(center, innerRadius, innerRadius);
+        trackPath.addEllipse(center, m_trackOuterRadius, m_trackOuterRadius);
+        trackPath.addEllipse(center, m_trackInnerRadius, m_trackInnerRadius);
         
         // Fill the track with semi-transparent green
         painter.setPen(Qt::NoPen);
@@ -516,9 +518,8 @@ void FloppyDiskWidget::drawTracks(QPainter &painter, const QRectF& envelopeRect)
     painter.restore();
 }
 
-void FloppyDiskWidget::drawSectors(QPainter &painter, const QRectF& envelopeRect)
+void FloppyDiskWidget::drawSectorBoundaries(QPainter &painter, const QRectF& envelopeRect)
 {
-    // Draw sector lines and highlight current sector
     QPointF center = envelopeRect.center();
     qreal scale = envelopeRect.width() / 5.25;
     
@@ -534,7 +535,7 @@ void FloppyDiskWidget::drawSectors(QPainter &painter, const QRectF& envelopeRect
     int sectors = m_sectorCount;
     qreal sectorAngle = 360.0 / sectors;
     
-    // Draw all sector lines first
+    // Draw all sector boundary lines
     for (int i = 0; i < sectors; i++) {
         double angleDeg = indexHoleAngleDeg + i * sectorAngle + rotationAngle;
         double angleRad = qDegreesToRadians(angleDeg);
@@ -548,21 +549,32 @@ void FloppyDiskWidget::drawSectors(QPainter &painter, const QRectF& envelopeRect
         painter.drawLine(innerPoint, outerPoint);
     }
     
-    // Then, draw the highlighted sector arc if enabled
+    painter.restore();
+}
+
+void FloppyDiskWidget::drawHighlightedSector(QPainter &painter, const QRectF& envelopeRect)
+{
+    QPointF center = envelopeRect.center();
+    qreal scale = envelopeRect.width() / 5.25;
+    
+    // Sector lines should start at the same radius as tracks
+    qreal minRadius = scale * 0.6; // Match track starting radius
+    qreal maxRadius = scale * 2.3; // Outer edge of disk
+    
+    // Calculate index hole position (for reference)
+    qreal indexHoleAngleDeg = INDEX_HOLE_ANGLE_DEG;
+    
+    int sectors = m_sectorCount;
+    qreal sectorAngle = 360.0 / sectors;
+    
+    // Only draw the highlighted sector if enabled and valid sector
     if (m_highlightSector && m_currentSector >= 0 && m_currentSector < sectors) {
-        // Calculate the current track radius to match the highlighted track
-        int numTracks = isDoubleDensity ? 80 : 40;
-        qreal trackSpacing = (maxRadius - minRadius) / numTracks;
+        painter.save();
         
-        // Use the exact same track highlighting calculation as in drawTracks
-        // This ensures the sector is highlighted on the same track as the green track highlight
-        qreal innerRadius, outerRadius;
-        
-        // Use the EXACT same calculation as in drawTracks for track highlighting
-        // Copy the code from lines 490-492 to ensure perfect alignment
-        qreal currentTrackIndex = numTracks - currentTrack;
-        innerRadius = minRadius + (currentTrackIndex - 0.5) * trackSpacing;
-        outerRadius = minRadius + (currentTrackIndex + 0.5) * trackSpacing;
+        // Use the track radius values that were calculated and stored in drawTracks
+        // This ensures perfect synchronization between track highlighting and sector highlighting
+        qreal innerRadius = m_trackInnerRadius;
+        qreal outerRadius = m_trackOuterRadius;
         
         // Calculate the sector that should be highlighted under the head
         // This makes the sector static below the head
@@ -625,9 +637,18 @@ void FloppyDiskWidget::drawSectors(QPainter &painter, const QRectF& envelopeRect
         
         // Restore painter state
         painter.restore();
+        
+        painter.restore();
     }
+}
+
+void FloppyDiskWidget::drawSectors(QPainter &painter, const QRectF& envelopeRect)
+{
+    // Draw sector boundary lines first
+    drawSectorBoundaries(painter, envelopeRect);
     
-    painter.restore();
+    // Then draw the highlighted sector on top
+    drawHighlightedSector(painter, envelopeRect);
 }
 
 void FloppyDiskWidget::drawHead(QPainter &painter, const QRectF& envelopeRect)
@@ -660,37 +681,28 @@ void FloppyDiskWidget::drawHead(QPainter &painter, const QRectF& envelopeRect)
     // Invert the position calculation so track 0 is at the bottom (outermost)
     qreal trackFraction = (numTracks > 1) ? (qreal)mappedTrack / (numTracks - 1) : 0.0;
     
-    // Use the same track calculation as in drawTracks - must match exactly with drawTracks
-    qreal minRadius = scale * 1.1;  // Start tracks further from the center (1.1" from center)
-    qreal maxRadius = scale * 2.3;  // Outer edge of disk
+    // If we're on the same track as the highlighted track and highlighting is enabled,
+    // use the stored track radius values for perfect alignment
+    qreal trackRadius;
     
-    // Calculate the head position based on the read/write window dimensions
-    // This ensures the head is exactly aligned with the tracks
-    
-    // Map the track position to the read/write window height
-    // Track 0 should be at the bottom of the window (outermost track)
-    // Track (numTracks-1) should be at the top of the window (innermost track)
-    qreal headPositionFraction = (qreal)mappedTrack / (numTracks - 1);
-    
-    // For track 0, we need to position the head at the outermost track
-    // We need to calculate the exact position based on the track drawing code
-    
-    // The track drawing code draws tracks from minRadius outward
-    // For track 0 (outermost track), we want to position at maxRadius
-    // For track (numTracks-1) (innermost track), we want to position at minRadius
-    
-    // Calculate the spacing between tracks (same as in drawTracks)
-    qreal trackSpacing = (maxRadius - minRadius) / numTracks;
-    
-    // Calculate the track radius for the current track
-    // Use the same formula as in drawTracks but invert the track numbering
-    qreal trackRadius = minRadius + (numTracks - mappedTrack) * trackSpacing;
-    
-    // For track 0, we need to position the head exactly at the outermost track
-    // Based on the screenshot, we need to adjust the position to be exactly on track 0
-    if (mappedTrack == 0) {
-        // For track 0, use the exact radius of the outermost track
-        trackRadius = maxRadius;
+    if (m_highlightTrack && mappedTrack == currentTrack) {
+        // Use the center radius of the highlighted track (average of inner and outer)
+        trackRadius = (m_trackInnerRadius + m_trackOuterRadius) / 2.0;
+    } else {
+        // Otherwise, calculate the radius as before
+        qreal minRadius = scale * 1.1;  // Start tracks further from the center (1.1" from center)
+        qreal maxRadius = scale * 2.3;  // Outer edge of disk
+        qreal trackSpacing = (maxRadius - minRadius) / numTracks;
+        
+        // Calculate the track radius for the current track
+        // Use the same formula as in drawTracks but invert the track numbering
+        trackRadius = minRadius + (numTracks - mappedTrack) * trackSpacing;
+        
+        // For track 0, we need to position the head exactly at the outermost track
+        if (mappedTrack == 0) {
+            // For track 0, use the exact radius of the outermost track
+            trackRadius = maxRadius;
+        }
     }
     
     // Calculate the intersection point of this track with the vertical line at 90 degrees (top)
