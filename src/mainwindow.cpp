@@ -1,7 +1,5 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
-#include <QVBoxLayout>
-#include <QHBoxLayout>
 #include <QPushButton>
 #include <QComboBox>
 #include <QLabel>
@@ -13,7 +11,6 @@ MainWindow::MainWindow(QWidget *parent)
     , currentSpeed(1.0)
 {
     ui->setupUi(this);
-    setupUI();
     createConnections();
 
     animationTimer = new QTimer(this);
@@ -28,47 +25,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::setupUI()
 {
-    QWidget *centralWidget = new QWidget(this);
-    setCentralWidget(centralWidget);
-
-    QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
-
-    // Create widgets
-    floppyWidget = new FloppyDiskWidget(this);
-    fdcWidget = new FDCControllerWidget(this);
-
-    // Create control buttons
-    QHBoxLayout *controlLayout = new QHBoxLayout();
-    QPushButton *playPauseBtn = new QPushButton("Play/Pause", this);
-    QPushButton *stopBtn = new QPushButton("Stop", this);
-    QPushButton *resetBtn = new QPushButton("Reset", this);
-
-    // Create speed control
-    QLabel *speedLabel = new QLabel("Speed:", this);
-    QComboBox *speedCombo = new QComboBox(this);
-    speedCombo->addItem("0.1x", 0.1);
-    speedCombo->addItem("0.25x", 0.25);
-    speedCombo->addItem("0.5x", 0.5);
-    speedCombo->addItem("1x", 1.0);
-    speedCombo->addItem("2x", 2.0);
-    speedCombo->setCurrentIndex(3); // Default to 1x
-    speedCombo->setFixedWidth(100);
-
-    // Add widgets to layouts
-    controlLayout->addWidget(playPauseBtn);
-    controlLayout->addWidget(stopBtn);
-    controlLayout->addWidget(resetBtn);
-    controlLayout->addWidget(speedLabel);
-    controlLayout->addWidget(speedCombo);
-    controlLayout->addStretch();
-
-    mainLayout->addWidget(floppyWidget);
-    mainLayout->addWidget(fdcWidget);
-    mainLayout->addLayout(controlLayout);
-
-    // Set window properties
-    setWindowTitle("Floppy Disk Emulator");
-    resize(800, 600);
+    // No manual widget/layout creation. All handled by .ui file.
 }
 
 void MainWindow::createConnections()
@@ -100,20 +57,20 @@ void MainWindow::onStopClicked()
     isPlaying = false;
     animationTimer->stop();
     // Reset animation state
-    floppyWidget->setRotationAngle(0);
-    floppyWidget->setIndexPulse(false);
+    ui->floppyWidget->setRotationAngle(0);
+    ui->floppyWidget->setIndexPulse(false);
 }
 
 void MainWindow::onResetClicked()
 {
     onStopClicked();
     // Reset all states
-    floppyWidget->setTrack(0);
-    floppyWidget->setSide(0);
-    floppyWidget->setHeadPosition(0);
-    floppyWidget->setOperation(false);
-    floppyWidget->setDoubleSided(true);
-    floppyWidget->setHighDensity(true);
+    ui->floppyWidget->setTrack(0);
+    ui->floppyWidget->setSide(0);
+    ui->floppyWidget->setHeadPosition(0);
+    ui->floppyWidget->setOperation(false);
+    ui->floppyWidget->setDoubleSided(true);
+    ui->floppyWidget->setHighDensity(true);
 }
 
 void MainWindow::onSpeedChanged(double speed)
@@ -136,12 +93,12 @@ void MainWindow::updateAnimation()
         indexPulseCounter++;
         if (indexPulseCounter >= 360) {
             indexPulseCounter = 0;
-            floppyWidget->setIndexPulse(true);
+            ui->floppyWidget->setIndexPulse(true);
         } else if (indexPulseCounter == 10) {
-            floppyWidget->setIndexPulse(false);
+            ui->floppyWidget->setIndexPulse(false);
         }
         
-        floppyWidget->setRotationAngle(angle);
-        floppyWidget->update();
+        ui->floppyWidget->setRotationAngle(angle);
+        ui->floppyWidget->update();
     }
 } 

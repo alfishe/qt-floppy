@@ -31,6 +31,8 @@ target_link_libraries(qt-floppy PRIVATE
     Qt6::Widgets
 )
 
+target_include_directories(qt-floppy PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
 set_target_properties(qt-floppy PROPERTIES
     WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE TRUE

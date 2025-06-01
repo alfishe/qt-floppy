@@ -115,9 +115,19 @@ void FloppyDiskWidget::paintEvent(QPaintEvent *event)
     // Draw the envelope (jacket) with correct holes and notches
     drawEnvelope(painter, floppyRect);
 
-    // Draw overlays (tracks, sectors, head, status)
+    // Draw overlays (tracks, head, status)
     drawTracks(painter, floppyRect);
+
+    // Draw sector lines clipped to disk area
+    QPointF center = floppyRect.center();
+    qreal diskRadius = floppyRect.width() * 2.5 / 5.25; // 5" disk diameter
+    painter.save();
+    QPainterPath diskClip;
+    diskClip.addEllipse(center, diskRadius, diskRadius);
+    painter.setClipPath(diskClip, Qt::IntersectClip);
     drawSectors(painter, floppyRect);
+    painter.restore();
+
     drawHead(painter, floppyRect);
     drawStatus(painter);
 }
