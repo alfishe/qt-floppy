@@ -546,7 +546,13 @@ void FloppyDiskWidget::drawSectorBoundaries(QPainter &painter, const QRectF& env
                           center.y() + maxRadius * qSin(angleRad));
         
         // Draw sector line
-        painter.setPen(QPen(QColor(255, 0, 0, 100), 1));
+        if (i == 0) {
+            // First sector delimiter (at index hole) - white and 2x wider
+            painter.setPen(QPen(Qt::white, 2));
+        } else {
+            // Other sector delimiters - semi-transparent red
+            painter.setPen(QPen(QColor(255, 0, 0, 100), 1));
+        }
         painter.drawLine(innerPoint, outerPoint);
     }
     
@@ -631,9 +637,9 @@ void FloppyDiskWidget::drawHighlightedSector(QPainter &painter, const QRectF& en
         ringPath.addEllipse(center, outerRadius, outerRadius);
         ringPath.addEllipse(center, innerRadius, innerRadius);
         
-        // Fill the ring with semi-transparent red
+        // Fill the ring with solid non-transparent red
         painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(255, 0, 0, 120)); // Semi-transparent red
+        painter.setBrush(QColor(255, 0, 0)); // Solid red, no transparency
         painter.drawPath(ringPath);
         
         // Restore painter state
