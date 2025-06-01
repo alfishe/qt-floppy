@@ -7,8 +7,9 @@
 #include <QtMath>
 
 namespace {
-constexpr qreal INDEX_HOLE_RADIAL_PCT = 0.286; // 28.6%
-constexpr qreal ENVELOPE_INDEX_HOLE_RADIUS_PCT = 0.024; // 4.8% (diameter 4.8%, so radius 2.4%)
+// Based on the blueprint, index hole should be closer to the center
+constexpr qreal INDEX_HOLE_RADIAL_PCT = 0.13; // 13% - closer to center as per blueprint
+constexpr qreal ENVELOPE_INDEX_HOLE_RADIUS_PCT = 0.018; // Smaller index hole (3.6% diameter)
 constexpr qreal DISK_INDEX_HOLE_RADIUS_PCT = 0.0095; // 1.9% (diameter 1.9%, so radius 0.95%)
 constexpr qreal INDEX_HOLE_ANGLE_DEG = 30.0;
 }
@@ -146,8 +147,8 @@ void FloppyDiskWidget::drawEnvelope(QPainter &painter, const QRectF& envelopeRec
     envelopePath.addEllipse(indexHoleCenter, envelopeIndexHoleRadius, envelopeIndexHoleRadius);
 
     // --- Read/Write window (vertical rounded rect) ---
-    qreal rwWidth = scale * 0.5 + 1;
-    qreal rwHeight = scale * 1.1;
+    qreal rwWidth = scale * 0.45; // Narrower window
+    qreal rwHeight = scale * 1.6; // Tall window
     qreal rwX = center.x() - rwWidth/2;
     qreal rwY = envelopeRect.bottom() - scale * 0.25 - rwHeight;
     QRectF rwRect(rwX, rwY, rwWidth, rwHeight);
@@ -164,7 +165,34 @@ void FloppyDiskWidget::drawEnvelope(QPainter &painter, const QRectF& envelopeRec
     QPainterPath wpNotchPath;
     wpNotchPath.addRect(wpRect);
     envelopePath = envelopePath.subtracted(wpNotchPath);
-
+    
+    // --- Add insertion guide cutouts at the bottom (rounded triangles) ---
+    qreal guideWidth = scale * 0.3;
+    qreal guideHeight = scale * 0.08;
+    qreal guideSpacing = scale * 0.85; // Space between the two guides
+    
+    // Left guide
+    QPainterPath leftGuidePath;
+    QPointF leftGuideCenter(center.x() - guideSpacing/2, envelopeRect.bottom());
+    QPolygonF leftGuidePolygon;
+    leftGuidePolygon << QPointF(leftGuideCenter.x() - guideWidth/2, envelopeRect.bottom())
+                     << QPointF(leftGuideCenter.x() + guideWidth/2, envelopeRect.bottom())
+                     << QPointF(leftGuideCenter.x(), envelopeRect.bottom() - guideHeight);
+    leftGuidePath.addPolygon(leftGuidePolygon);
+    
+    // Right guide
+    QPainterPath rightGuidePath;
+    QPointF rightGuideCenter(center.x() + guideSpacing/2, envelopeRect.bottom());
+    QPolygonF rightGuidePolygon;
+    rightGuidePolygon << QPointF(rightGuideCenter.x() - guideWidth/2, envelopeRect.bottom())
+                      << QPointF(rightGuideCenter.x() + guideWidth/2, envelopeRect.bottom())
+                      << QPointF(rightGuideCenter.x(), envelopeRect.bottom() - guideHeight);
+    rightGuidePath.addPolygon(rightGuidePolygon);
+    
+    // Subtract both guides from the envelope path
+    envelopePath = envelopePath.subtracted(leftGuidePath);
+    envelopePath = envelopePath.subtracted(rightGuidePath);
+    
     // --- Draw envelope with transparency ---
     QColor plasticColor(60, 60, 80, int(m_envelopeTransparency * 255));
     painter.setBrush(plasticColor);
@@ -198,7 +226,14 @@ void FloppyDiskWidget::drawEnvelope(QPainter &painter, const QRectF& envelopeRec
     
     // Draw other outlines
     painter.drawEllipse(center, hubRadius, hubRadius);
+    
+    // Draw index hole with grayish color
+    painter.setPen(QPen(Qt::black, 1));
+    painter.setBrush(QBrush(QColor(160, 160, 160))); // Grayish color
     painter.drawEllipse(indexHoleCenter, envelopeIndexHoleRadius, envelopeIndexHoleRadius);
+    
+    // Reset brush and draw read/write window
+    painter.setBrush(Qt::NoBrush);
     painter.drawRoundedRect(rwRect, rwWidth/2, rwWidth/2);
 
     // --- Mask for disk: only visible through center hole, index hole, and read/write window ---
@@ -262,8 +297,14 @@ void FloppyDiskWidget::drawDisk(QPainter &painter, const QRectF& envelopeRect)
 void FloppyDiskWidget::drawTracks(QPainter &painter, const QRectF& envelopeRect)
 {
     QPointF center = envelopeRect.center();
-    int maxRadius = envelopeRect.width() * 0.48;
-    int minRadius = maxRadius / 3;
+    qreal scale = envelopeRect.width() / 5.25;
+    qreal maxRadius = envelopeRect.width() * 0.48;
+    
+    // Reduce the gap between hub and first track
+    // Hub radius is scale * 1.0 / 2.0 (0.5 inches)
+    // Start tracks just a bit outside the hub (0.6 inches)
+    qreal minRadius = scale * 0.6; // Smaller gap between hub and first track
+    
     int numTracks = isHighDensity ? 80 : 40;
     painter.setPen(QPen(Qt::blue, 1));
     for (int i = 0; i < numTracks; i++) {
@@ -280,10 +321,9 @@ void FloppyDiskWidget::drawSectors(QPainter &painter, const QRectF& envelopeRect
     // Calculate precise dimensions based on actual disk geometry
     qreal maxRadius = envelopeRect.width() * 0.48;  // Outer edge of disk
     
-    // The gray circle represents the non-data area around the hub
-    // On a real 3.5" floppy, data starts at about 0.8-0.9" from center
-    // Adjust to be 10% longer than previous setting (which was scale * 1.0)
-    qreal minRadius = scale * 0.9;  // Start just at the edge of the gray circle
+    // Match the sector arcs with the track starting position
+    // This ensures sectors and tracks align properly
+    qreal minRadius = scale * 0.6;  // Same as track starting position
     
     painter.setPen(QPen(Qt::red, 1));
     int sectors = m_sectorCount;
