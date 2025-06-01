@@ -117,16 +117,7 @@ void FloppyDiskWidget::paintEvent(QPaintEvent *event)
 
     // Draw overlays (tracks, head, status)
     drawTracks(painter, floppyRect);
-
-    // Draw sector lines clipped to disk area
-    QPointF center = floppyRect.center();
-    qreal diskRadius = floppyRect.width() * 2.5 / 5.25; // 5" disk diameter
-    painter.save();
-    QPainterPath diskClip;
-    diskClip.addEllipse(center, diskRadius, diskRadius);
-    painter.setClipPath(diskClip, Qt::IntersectClip);
     drawSectors(painter, floppyRect);
-    painter.restore();
 
     drawHead(painter, floppyRect);
     drawStatus(painter);
@@ -155,7 +146,7 @@ void FloppyDiskWidget::drawEnvelope(QPainter &painter, const QRectF& envelopeRec
     envelopePath.addEllipse(indexHoleCenter, envelopeIndexHoleRadius, envelopeIndexHoleRadius);
 
     // --- Read/Write window (vertical rounded rect) ---
-    qreal rwWidth = scale * 0.5;
+    qreal rwWidth = scale * 0.5 + 1;
     qreal rwHeight = scale * 1.1;
     qreal rwX = center.x() - rwWidth/2;
     qreal rwY = envelopeRect.bottom() - scale * 0.25 - rwHeight;
@@ -168,22 +159,47 @@ void FloppyDiskWidget::drawEnvelope(QPainter &painter, const QRectF& envelopeRec
     qreal wpX = envelopeRect.right() - wpWidth;
     qreal wpY = envelopeRect.top() + scale * 0.5;
     QRectF wpRect(wpX, wpY, wpWidth, wpHeight);
-    envelopePath.addRect(wpRect);
+    
+    // Create a cutout in the envelope path for the write-protect notch
+    QPainterPath wpNotchPath;
+    wpNotchPath.addRect(wpRect);
+    envelopePath = envelopePath.subtracted(wpNotchPath);
 
     // --- Draw envelope with transparency ---
     QColor plasticColor(60, 60, 80, int(m_envelopeTransparency * 255));
     painter.setBrush(plasticColor);
     painter.setPen(QPen(Qt::black, 2));
+    
+    // Draw the main envelope path with the write-protect notch cutout
     painter.drawPath(envelopePath);
 
     // --- Draw outlines for wireframe effect ---
     painter.setBrush(Qt::NoBrush);
     painter.setPen(QPen(Qt::black, 1, Qt::DashLine));
-    painter.drawRoundedRect(envelopeRect, radius, radius);
+    
+    // Create a custom outline path for the envelope that excludes the write-protect notch
+    QPainterPath outlinePath;
+    
+    // Start with a rounded rectangle for the envelope
+    QPainterPath envelopeOutline;
+    envelopeOutline.addRoundedRect(envelopeRect, radius, radius);
+    
+    // Create a path for the write-protect notch area (slightly larger to ensure no artifacts)
+    QPainterPath wpOutlineExclude;
+    qreal wpOutlineMargin = 1.0; // Small margin to ensure clean exclusion
+    QRectF wpOutlineRect = wpRect.adjusted(-wpOutlineMargin, -wpOutlineMargin, wpOutlineMargin, wpOutlineMargin);
+    wpOutlineExclude.addRect(wpOutlineRect);
+    
+    // Subtract the write-protect notch from the envelope outline
+    outlinePath = envelopeOutline.subtracted(wpOutlineExclude);
+    
+    // Draw the custom envelope outline
+    painter.drawPath(outlinePath);
+    
+    // Draw other outlines
     painter.drawEllipse(center, hubRadius, hubRadius);
     painter.drawEllipse(indexHoleCenter, envelopeIndexHoleRadius, envelopeIndexHoleRadius);
     painter.drawRoundedRect(rwRect, rwWidth/2, rwWidth/2);
-    painter.drawRect(wpRect);
 
     // --- Mask for disk: only visible through center hole and read/write window ---
     QPainterPath diskMask;
@@ -192,6 +208,14 @@ void FloppyDiskWidget::drawEnvelope(QPainter &painter, const QRectF& envelopeRec
     painter.save();
     painter.setClipPath(diskMask);
     drawDisk(painter, envelopeRect);
+    
+    // Draw sector lines visible through the same holes
+    QPainterPath sectorMask = diskMask;
+    qreal diskRadius = scale * 2.5; // 5" diameter
+    QPainterPath diskArea;
+    diskArea.addEllipse(center, diskRadius, diskRadius);
+    painter.setClipPath(sectorMask.intersected(diskArea));
+    drawSectors(painter, envelopeRect);
     painter.restore();
 }
 
