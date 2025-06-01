@@ -71,6 +71,10 @@ private:
     qreal m_trackInnerRadius;
     qreal m_trackOuterRadius;
     
+    // Track radius constants - used across all methods
+    qreal m_minTrackRadius;
+    qreal m_maxTrackRadius;
+    
     // Animation properties
     QTimer* m_animationTimer = nullptr;
     QTimer* m_sideAnimationTimer = nullptr;
