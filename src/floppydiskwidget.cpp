@@ -638,15 +638,27 @@ void FloppyDiskWidget::drawHighlightedSector(QPainter &painter, const QRectF& en
         // Create a completely clean sector shape without ANY parasitic lines
         // Instead of creating a closed path, we'll draw two separate arcs and fill the area between them
         
-        // Create a clip path for the sector
+        // Create a proper sector path that follows the outer radius curve
         QPainterPath clipPath;
         
-        // Add two radial lines to define the sector boundaries
+        // Start at the center
         clipPath.moveTo(center);
+        
+        // Draw first radial line to the outer edge
         clipPath.lineTo(center.x() + m_maxTrackRadius * qCos(qDegreesToRadians(startAngle)),
                         center.y() + m_maxTrackRadius * qSin(qDegreesToRadians(startAngle)));
-        clipPath.lineTo(center.x() + m_maxTrackRadius * qCos(qDegreesToRadians(startAngle + sectorAngle)),
-                        center.y() + m_maxTrackRadius * qSin(qDegreesToRadians(startAngle + sectorAngle)));
+        
+        // Draw an arc along the outer edge from startAngle to startAngle+sectorAngle
+        clipPath.arcTo(
+            center.x() - m_maxTrackRadius, // left
+            center.y() - m_maxTrackRadius, // top
+            m_maxTrackRadius * 2,          // width
+            m_maxTrackRadius * 2,          // height
+            -startAngle,                   // start angle (Qt uses counter-clockwise angles from 3 o'clock)
+            -sectorAngle                   // span angle (negative for clockwise)
+        );
+        
+        // Close the path back to the center
         clipPath.closeSubpath();
         
         // Save painter state before applying clip
