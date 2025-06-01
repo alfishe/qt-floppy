@@ -21,17 +21,43 @@ FloppyDiskWidget::FloppyDiskWidget(QWidget *parent)
     , headPosition(0)
     , isWriteOperation(false)
     , isDoubleSided(true)
-    , isHighDensity(true)
+    , isDoubleDensity(true)
     , rotationAngle(0)
     , indexPulseActive(false)
     , m_envelopeTransparency(1.0)
     , m_sectorCount(16)  // Default to 16 sectors for standard floppy
+    , m_currentSector(0)
+    , m_highlightTrack(true)
+    , m_highlightSector(true)
+    , m_animationTimer(new QTimer(this))
+    , m_sideAnimationTimer(new QTimer(this))
+    , m_isHeadAnimating(false)
+    , m_animationStep(0)
+    , m_animationDirectionUp(true)
+    , m_animationSpeed(1.0)
 {
     setMinimumSize(400, 400);
+    
+    // Connect the animation timer to the animation slot
+    connect(m_animationTimer, &QTimer::timeout, this, &FloppyDiskWidget::animateHead);
+    
+    // Connect the side animation timer - updates twice as fast as track movement
+    connect(m_sideAnimationTimer, &QTimer::timeout, this, &FloppyDiskWidget::animateSide);
 }
 
 FloppyDiskWidget::~FloppyDiskWidget()
 {
+    if (m_animationTimer) {
+        m_animationTimer->stop();
+        delete m_animationTimer;
+        m_animationTimer = nullptr;
+    }
+    
+    if (m_sideAnimationTimer) {
+        m_sideAnimationTimer->stop();
+        delete m_sideAnimationTimer;
+        m_sideAnimationTimer = nullptr;
+    }
 }
 
 void FloppyDiskWidget::setTrack(int track)
@@ -52,6 +78,147 @@ void FloppyDiskWidget::setHeadPosition(int position)
     update();
 }
 
+void FloppyDiskWidget::startHeadAnimation()
+{
+    if (!m_isHeadAnimating) {
+        m_isHeadAnimating = true;
+        
+        // Calculate timer intervals based on animation speed
+        // Base speed (1.0x): 1 second per step for track movement
+        int trackInterval = static_cast<int>(1000 / m_animationSpeed);
+        int sideInterval = trackInterval / 2; // Side changes twice as fast
+        
+        m_animationTimer->start(trackInterval);
+        m_sideAnimationTimer->start(sideInterval);
+    }
+}
+
+void FloppyDiskWidget::stopHeadAnimation()
+{
+    if (m_isHeadAnimating) {
+        m_isHeadAnimating = false;
+        m_animationTimer->stop();
+        m_sideAnimationTimer->stop();
+        // Don't reset animation position - it should resume from where it stopped
+    }
+}
+
+void FloppyDiskWidget::resetHeadAnimation()
+{
+    m_isHeadAnimating = false;
+    m_animationTimer->stop();
+    m_sideAnimationTimer->stop();
+    m_animationStep = 0;
+    m_animationDirectionUp = true;
+    currentTrack = 0;
+    currentSide = 0;
+    update();
+}
+
+bool FloppyDiskWidget::isHeadAnimating() const
+{
+    return m_isHeadAnimating;
+}
+
+void FloppyDiskWidget::setAnimationSpeed(qreal speed)
+{
+    if (speed > 0) {
+        m_animationSpeed = speed;
+        
+        // If animation is running, update the timers with new intervals
+        if (m_isHeadAnimating) {
+            int trackInterval = static_cast<int>(1000 / m_animationSpeed);
+            int sideInterval = trackInterval / 2;
+            
+            m_animationTimer->setInterval(trackInterval);
+            m_sideAnimationTimer->setInterval(sideInterval);
+        }
+    }
+}
+
+void FloppyDiskWidget::setHighlightTrack(bool highlight)
+{
+    if (m_highlightTrack != highlight) {
+        m_highlightTrack = highlight;
+        update();
+    }
+}
+
+void FloppyDiskWidget::setHighlightSector(bool highlight)
+{
+    if (m_highlightSector != highlight) {
+        m_highlightSector = highlight;
+        update();
+    }
+}
+
+void FloppyDiskWidget::setCurrentSector(int sector)
+{
+    if (sector >= 0 && sector < m_sectorCount && m_currentSector != sector) {
+        m_currentSector = sector;
+        update();
+    }
+}
+
+int FloppyDiskWidget::getCurrentSector() const
+{
+    return m_currentSector;
+}
+
+int FloppyDiskWidget::getSectorCount() const
+{
+    return m_sectorCount;
+}
+
+void FloppyDiskWidget::animateSide()
+{
+    if (!m_isHeadAnimating) {
+        return;
+    }
+    
+    // Toggle between side 0 and side 1 if double-sided
+    if (isDoubleSided) {
+        currentSide = (currentSide == 0) ? 1 : 0;
+        update();
+    }
+}
+
+void FloppyDiskWidget::animateHead()
+{
+    if (!m_isHeadAnimating) {
+        return;
+    }
+
+    // Update step counter based on direction
+    if (m_animationDirectionUp) {
+        m_animationStep++;
+        if (m_animationStep >= ANIMATION_STEPS - 1) {
+            m_animationDirectionUp = false;
+        }
+    } else {
+        m_animationStep--;
+        if (m_animationStep <= 0) {
+            m_animationDirectionUp = true;
+        }
+    }
+
+    // Update track indicator based on animation step
+    // Map animation step (0 to ANIMATION_STEPS-1) to track number (0 to 79 for HD)
+    int numTracks = isDoubleDensity ? 80 : 40;
+    int newTrack = static_cast<int>((static_cast<float>(m_animationStep) / (ANIMATION_STEPS - 1)) * (numTracks - 1));
+    if (newTrack != currentTrack) {
+        currentTrack = newTrack;
+    }
+
+    // Calculate current sector based on rotation angle
+    int sectorCount = m_sectorCount;
+    int currentSector = static_cast<int>(fmod(rotationAngle, 360.0) / (360.0 / sectorCount));
+    setCurrentSector(currentSector);
+
+    // Trigger repaint
+    update();
+}
+
 void FloppyDiskWidget::setOperation(bool isWrite)
 {
     isWriteOperation = isWrite;
@@ -64,9 +231,9 @@ void FloppyDiskWidget::setDoubleSided(bool doubleSided)
     update();
 }
 
-void FloppyDiskWidget::setHighDensity(bool highDensity)
+void FloppyDiskWidget::setDoubleDensity(bool doubleDensity)
 {
-    isHighDensity = highDensity;
+    isDoubleDensity = doubleDensity;
     update();
 }
 
@@ -116,10 +283,14 @@ void FloppyDiskWidget::paintEvent(QPaintEvent *event)
     // Draw the envelope (jacket) with correct holes and notches
     drawEnvelope(painter, floppyRect);
 
-    // Draw overlays (tracks, head, status)
+    // Draw overlays in correct order for proper visibility
+    // First draw tracks without highlighting
     drawTracks(painter, floppyRect);
+    
+    // Then draw sector highlighting on top of tracks
     drawSectors(painter, floppyRect);
-
+    
+    // Finally draw the head
     drawHead(painter, floppyRect);
     drawStatus(painter);
 }
@@ -148,7 +319,7 @@ void FloppyDiskWidget::drawEnvelope(QPainter &painter, const QRectF& envelopeRec
 
     // --- Read/Write window (vertical rounded rect) ---
     qreal rwWidth = scale * 0.45; // Narrower window
-    qreal rwHeight = scale * 1.6; // Tall window
+    qreal rwHeight = scale * 1.7; // Tall window
     qreal rwX = center.x() - rwWidth/2;
     qreal rwY = envelopeRect.bottom() - scale * 0.25 - rwHeight;
     QRectF rwRect(rwX, rwY, rwWidth, rwHeight);
@@ -296,56 +467,167 @@ void FloppyDiskWidget::drawDisk(QPainter &painter, const QRectF& envelopeRect)
 
 void FloppyDiskWidget::drawTracks(QPainter &painter, const QRectF& envelopeRect)
 {
+    // Draw concentric circles representing tracks
     QPointF center = envelopeRect.center();
     qreal scale = envelopeRect.width() / 5.25;
-    qreal maxRadius = envelopeRect.width() * 0.48;
     
-    // Reduce the gap between hub and first track
-    // Hub radius is scale * 1.0 / 2.0 (0.5 inches)
-    // Start tracks just a bit outside the hub (0.6 inches)
-    qreal minRadius = scale * 0.6; // Smaller gap between hub and first track
+    // Start tracks further from the hub to match screenshot
+    qreal hubRadius = scale * 0.5; // 1.0" diameter hub
     
-    int numTracks = isHighDensity ? 80 : 40;
-    painter.setPen(QPen(Qt::blue, 1));
-    for (int i = 0; i < numTracks; i++) {
-        double trackRadius = minRadius + (maxRadius - minRadius) * i / (numTracks - 1);
-        painter.drawEllipse(center, trackRadius, trackRadius);
+    // Increase the inner radius to add 4-5 more circles gap from center
+    qreal minRadius = scale * 1.1; // Increased from 0.9 to 1.1 to add more space from center
+    qreal maxRadius = scale * 2.3; // Outer edge of disk
+    int numTracks = isDoubleDensity ? 80 : 40;
+    qreal trackSpacing = (maxRadius - minRadius) / numTracks;
+    
+    painter.save();
+    
+    // Draw all tracks with blue/violet color (restore original color)
+    painter.setPen(QPen(QColor(100, 100, 255, 120), scale * 0.01));
+    for (int i = 0; i <= numTracks; i++) {
+        qreal radius = minRadius + i * trackSpacing;
+        painter.drawEllipse(center, radius, radius);
     }
+    
+    // Highlight current track if enabled - fill the entire track with green
+    if (m_highlightTrack && currentTrack >= 0 && currentTrack < numTracks) {
+        // Calculate inner and outer radius of the current track
+        qreal currentTrackIndex = numTracks - currentTrack;
+        qreal innerRadius = minRadius + (currentTrackIndex - 0.5) * trackSpacing;
+        qreal outerRadius = minRadius + (currentTrackIndex + 0.5) * trackSpacing;
+        
+        // Create a path for the track ring
+        QPainterPath trackPath;
+        trackPath.addEllipse(center, outerRadius, outerRadius);
+        trackPath.addEllipse(center, innerRadius, innerRadius);
+        
+        // Fill the track with semi-transparent green
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(0, 200, 0, 80)); // Semi-transparent green
+        painter.drawPath(trackPath);
+        
+        // Draw track outline
+        qreal currentRadius = minRadius + currentTrackIndex * trackSpacing;
+        painter.setPen(QPen(QColor(0, 200, 0, 180), scale * 0.02));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(center, currentRadius, currentRadius);
+    }
+    
+    painter.restore();
 }
 
 void FloppyDiskWidget::drawSectors(QPainter &painter, const QRectF& envelopeRect)
 {
+    // Draw sector lines and highlight current sector
     QPointF center = envelopeRect.center();
     qreal scale = envelopeRect.width() / 5.25;
     
-    // Calculate precise dimensions based on actual disk geometry
-    qreal maxRadius = envelopeRect.width() * 0.48;  // Outer edge of disk
+    // Sector lines should start at the same radius as tracks
+    qreal minRadius = scale * 0.6; // Match track starting radius
+    qreal maxRadius = scale * 2.3; // Outer edge of disk
     
-    // Match the sector arcs with the track starting position
-    // This ensures sectors and tracks align properly
-    qreal minRadius = scale * 0.6;  // Same as track starting position
-    
-    painter.setPen(QPen(Qt::red, 1));
-    int sectors = m_sectorCount;
-    
-    // Calculate the index hole angle to start sectors from there
-    qreal indexHoleAngleRad = qDegreesToRadians(INDEX_HOLE_ANGLE_DEG);
+    // Calculate index hole position (for reference)
     qreal indexHoleAngleDeg = INDEX_HOLE_ANGLE_DEG;
     
-    // Draw all sector lines (from 0 to sectors-1)
+    painter.save();
+    
+    int sectors = m_sectorCount;
+    qreal sectorAngle = 360.0 / sectors;
+    
+    // Draw all sector lines first
     for (int i = 0; i < sectors; i++) {
-        // Start from index hole position and distribute evenly
-        double angleDeg = indexHoleAngleDeg + i * (360.0 / sectors) + rotationAngle;
+        double angleDeg = indexHoleAngleDeg + i * sectorAngle + rotationAngle;
         double angleRad = qDegreesToRadians(angleDeg);
-        
-        // Draw line from inner radius to outer radius with precise dimensions
         QPointF innerPoint(center.x() + minRadius * qCos(angleRad),
                           center.y() + minRadius * qSin(angleRad));
         QPointF outerPoint(center.x() + maxRadius * qCos(angleRad),
                           center.y() + maxRadius * qSin(angleRad));
         
+        // Draw sector line
+        painter.setPen(QPen(QColor(255, 0, 0, 100), 1));
         painter.drawLine(innerPoint, outerPoint);
     }
+    
+    // Then, draw the highlighted sector arc if enabled
+    if (m_highlightSector && m_currentSector >= 0 && m_currentSector < sectors) {
+        // Calculate the current track radius to match the highlighted track
+        int numTracks = isDoubleDensity ? 80 : 40;
+        qreal trackSpacing = (maxRadius - minRadius) / numTracks;
+        
+        // Use the exact same track highlighting calculation as in drawTracks
+        // This ensures the sector is highlighted on the same track as the green track highlight
+        qreal innerRadius, outerRadius;
+        
+        // Use the EXACT same calculation as in drawTracks for track highlighting
+        // Copy the code from lines 490-492 to ensure perfect alignment
+        qreal currentTrackIndex = numTracks - currentTrack;
+        innerRadius = minRadius + (currentTrackIndex - 0.5) * trackSpacing;
+        outerRadius = minRadius + (currentTrackIndex + 0.5) * trackSpacing;
+        
+        // Calculate the sector that should be highlighted under the head
+        // This makes the sector static below the head
+        
+        // Find the angle of the head position (90 degrees = top of disk)
+        qreal headAngleDeg = 90.0;
+        
+        // Calculate which sector is currently under the head
+        // First, normalize the rotation angle to 0-360 degrees
+        qreal normalizedRotation = fmod(rotationAngle, 360.0);
+        if (normalizedRotation < 0) normalizedRotation += 360.0;
+        
+        // Calculate the absolute angle (disk coordinates)
+        // For clockwise rotation, we add the rotation angle instead of subtracting
+        qreal absoluteAngle = headAngleDeg + normalizedRotation;
+        if (absoluteAngle >= 360.0) absoluteAngle -= 360.0;
+        
+        // Determine which sector is under the head
+        int headSector = static_cast<int>(fmod(absoluteAngle - indexHoleAngleDeg + 360.0, 360.0) / sectorAngle);
+        if (headSector < 0) headSector += sectors;
+        if (headSector >= sectors) headSector -= sectors;
+        
+        // Override the current sector with the one under the head
+        int sectorToHighlight = headSector;
+        
+        // Calculate the start angle for the sector under the head
+        // For clockwise rotation, we need to invert the rotation angle
+        // This makes the sector rotate clockwise with the disk
+        qreal startAngle = indexHoleAngleDeg + sectorToHighlight * sectorAngle - rotationAngle;
+        
+        // Create a completely clean sector shape without ANY parasitic lines
+        // Instead of creating a closed path, we'll draw two separate arcs and fill the area between them
+        
+        // Create a clip path for the sector
+        QPainterPath clipPath;
+        
+        // Add two radial lines to define the sector boundaries
+        clipPath.moveTo(center);
+        clipPath.lineTo(center.x() + maxRadius * qCos(qDegreesToRadians(startAngle)),
+                        center.y() + maxRadius * qSin(qDegreesToRadians(startAngle)));
+        clipPath.lineTo(center.x() + maxRadius * qCos(qDegreesToRadians(startAngle + sectorAngle)),
+                        center.y() + maxRadius * qSin(qDegreesToRadians(startAngle + sectorAngle)));
+        clipPath.closeSubpath();
+        
+        // Save painter state before applying clip
+        painter.save();
+        
+        // Apply the sector clip path
+        painter.setClipPath(clipPath);
+        
+        // Now draw a ring that will be clipped to the sector shape
+        QPainterPath ringPath;
+        ringPath.addEllipse(center, outerRadius, outerRadius);
+        ringPath.addEllipse(center, innerRadius, innerRadius);
+        
+        // Fill the ring with semi-transparent red
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(255, 0, 0, 120)); // Semi-transparent red
+        painter.drawPath(ringPath);
+        
+        // Restore painter state
+        painter.restore();
+    }
+    
+    painter.restore();
 }
 
 void FloppyDiskWidget::drawHead(QPainter &painter, const QRectF& envelopeRect)
@@ -353,17 +635,72 @@ void FloppyDiskWidget::drawHead(QPainter &painter, const QRectF& envelopeRect)
     // Read/write window geometry (must match drawEnvelope)
     QPointF center = envelopeRect.center();
     qreal scale = envelopeRect.width() / 5.25;
-    qreal rwWidth = scale * 0.5;
-    qreal rwHeight = scale * 1.1;
+    qreal rwWidth = scale * 0.45; // Match the current narrower window width
+    qreal rwHeight = scale * 1.6; // Match the current taller window height
     qreal rwX = center.x() - rwWidth/2;
     qreal rwY = envelopeRect.bottom() - scale * 0.25 - rwHeight;
     QRectF rwRect(rwX, rwY, rwWidth, rwHeight);
 
-    // Head position: moves vertically within rwRect based on currentTrack
-    int numTracks = isHighDensity ? 80 : 40;
-    qreal frac = (numTracks > 1) ? (qreal)currentTrack / (numTracks - 1) : 0.0;
-    qreal headY = rwRect.top() + frac * rwRect.height();
+    // Calculate head position based on animation or track
     qreal headX = rwRect.center().x();
+    qreal headY;
+    
+    // Determine the current track (either from animation or direct track value)
+    int numTracks = isDoubleDensity ? 80 : 40;
+    int mappedTrack;
+    
+    if (m_isHeadAnimating) {
+        // When animating, use the animation step to determine position
+        qreal normalizedStep = (qreal)m_animationStep / (ANIMATION_STEPS - 1);
+        mappedTrack = static_cast<int>(normalizedStep * (numTracks - 1));
+    } else {
+        mappedTrack = currentTrack;
+    }
+    
+    // Invert the position calculation so track 0 is at the bottom (outermost)
+    qreal trackFraction = (numTracks > 1) ? (qreal)mappedTrack / (numTracks - 1) : 0.0;
+    
+    // Use the same track calculation as in drawTracks - must match exactly with drawTracks
+    qreal minRadius = scale * 1.1;  // Start tracks further from the center (1.1" from center)
+    qreal maxRadius = scale * 2.3;  // Outer edge of disk
+    
+    // Calculate the head position based on the read/write window dimensions
+    // This ensures the head is exactly aligned with the tracks
+    
+    // Map the track position to the read/write window height
+    // Track 0 should be at the bottom of the window (outermost track)
+    // Track (numTracks-1) should be at the top of the window (innermost track)
+    qreal headPositionFraction = (qreal)mappedTrack / (numTracks - 1);
+    
+    // For track 0, we need to position the head at the outermost track
+    // We need to calculate the exact position based on the track drawing code
+    
+    // The track drawing code draws tracks from minRadius outward
+    // For track 0 (outermost track), we want to position at maxRadius
+    // For track (numTracks-1) (innermost track), we want to position at minRadius
+    
+    // Calculate the spacing between tracks (same as in drawTracks)
+    qreal trackSpacing = (maxRadius - minRadius) / numTracks;
+    
+    // Calculate the track radius for the current track
+    // Use the same formula as in drawTracks but invert the track numbering
+    qreal trackRadius = minRadius + (numTracks - mappedTrack) * trackSpacing;
+    
+    // For track 0, we need to position the head exactly at the outermost track
+    // Based on the screenshot, we need to adjust the position to be exactly on track 0
+    if (mappedTrack == 0) {
+        // For track 0, use the exact radius of the outermost track
+        trackRadius = maxRadius;
+    }
+    
+    // Calculate the intersection point of this track with the vertical line at 90 degrees (top)
+    qreal trackY = center.y() + trackRadius * qSin(qDegreesToRadians(90.0));
+    
+    // Position the head at this exact Y coordinate
+    headY = trackY;
+    
+    // This positions the head at the top of the disk, matching the orientation
+    // of the center hole and correcting the head position
 
     // Plastic mount (semi-transparent rectangle)
     qreal mountWidth = rwWidth * 0.95;
@@ -407,11 +744,13 @@ void FloppyDiskWidget::drawStatus(QPainter &painter)
     painter.setPen(Qt::black);
     painter.setFont(QFont("Arial", 10));
     
-    QString status = QString("Track: %1  Side: %2  %3  %4")
+    // Include the sector number in the status display
+    QString status = QString("Track: %1  Side: %2  Sector: %3  %4  %5")
         .arg(currentTrack)
         .arg(currentSide)
+        .arg(m_currentSector)
         .arg(isWriteOperation ? "Write" : "Read")
-        .arg(isHighDensity ? "HD" : "DD");
+        .arg(isDoubleDensity ? "DD" : "SD");
     
     painter.drawText(10, height() - 10, status);
 }

@@ -22,7 +22,7 @@ private slots:
     void onPlayPauseClicked();
     void onStopClicked();
     void onResetClicked();
-    void onSpeedChanged(double speed);
+    void onSpeedChanged(int index);
     void updateAnimation();
 
 private:

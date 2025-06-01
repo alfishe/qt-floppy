@@ -48,6 +48,93 @@
    </property>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QToolBar" name="toolBar">
+   <property name="windowTitle">
+    <string>toolBar</string>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="actionPlay"/>
+   <addaction name="actionStop"/>
+   <addaction name="actionReset"/>
+   <addaction name="separator"/>
+   <widget class="QLabel" name="speedLabel">
+    <property name="text">
+     <string>Speed:</string>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="speedComboBox">
+    <property name="minimumSize">
+     <size>
+      <width>80</width>
+      <height>0</height>
+     </size>
+    </property>
+    <item>
+     <property name="text">
+      <string>0.01x</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>0.05x</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>0.1x</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>0.25x</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>0.5x</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>1x</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>2x</string>
+     </property>
+    </item>
+   </widget>
+  </widget>
+  <action name="actionPlay">
+   <property name="text">
+    <string>Play/Pause</string>
+   </property>
+   <property name="toolTip">
+    <string>Start/Stop Animation</string>
+   </property>
+  </action>
+  <action name="actionStop">
+   <property name="text">
+    <string>Stop</string>
+   </property>
+   <property name="toolTip">
+    <string>Stop Animation</string>
+   </property>
+  </action>
+  <action name="actionReset">
+   <property name="text">
+    <string>Reset</string>
+   </property>
+   <property name="toolTip">
+    <string>Reset Animation</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>

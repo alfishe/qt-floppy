@@ -18,7 +18,7 @@ public:
     void setHeadPosition(int position);
     void setOperation(bool isWrite);
     void setDoubleSided(bool doubleSided);
-    void setHighDensity(bool highDensity);
+    void setDoubleDensity(bool highDensity);
     void setRotationAngle(double angle);
     void setIndexPulse(bool active);
     void setEnvelopeTransparency(qreal alpha);
@@ -26,21 +26,54 @@ public:
     void setSectorCount(int count);
     int sectorCount() const;
 
+    // Animation control
+    void startHeadAnimation();
+    void stopHeadAnimation();
+    void resetHeadAnimation();
+    bool isHeadAnimating() const;
+    void setAnimationSpeed(qreal speed);
+    
+    // Track and sector highlighting
+    void setHighlightTrack(bool highlight);
+    void setHighlightSector(bool highlight);
+    void setCurrentSector(int sector);
+    int getCurrentSector() const;
+    int getSectorCount() const;
+
+private slots:
+    void animateHead();
+    void animateSide();
+
 protected:
     void paintEvent(QPaintEvent *event) override;
     QSize sizeHint() const override;
 
 private:
+    // Animation constants
+    static constexpr int ANIMATION_STEPS = 80;
+    static constexpr int DISK_RPM = 300; // 300 RPM = 5 RPS
+
     int currentTrack;
     int currentSide;
     int headPosition;
     bool isWriteOperation;
     bool isDoubleSided;
-    bool isHighDensity;
-    double rotationAngle;
+    bool isDoubleDensity;
+    qreal rotationAngle;
     bool indexPulseActive;
-    qreal m_envelopeTransparency = 0.5;
-    int m_sectorCount = 16;
+    qreal m_envelopeTransparency;
+    int m_sectorCount;
+    int m_currentSector;
+    bool m_highlightTrack;
+    bool m_highlightSector;
+    
+    // Animation properties
+    QTimer* m_animationTimer = nullptr;
+    QTimer* m_sideAnimationTimer = nullptr;
+    bool m_isHeadAnimating = false;
+    int m_animationStep = 0;
+    bool m_animationDirectionUp = true;
+    qreal m_animationSpeed;
 
     void drawDisk(QPainter &painter, const QRectF& envelopeRect);
     void drawTracks(QPainter &painter, const QRectF& envelopeRect);
