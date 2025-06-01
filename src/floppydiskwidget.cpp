@@ -322,8 +322,13 @@ void FloppyDiskWidget::drawEnvelope(QPainter &painter, const QRectF& envelopeRec
     // --- Read/Write window (vertical rounded rect) ---
     qreal rwWidth = scale * 0.45; // Narrower window
     qreal rwHeight = scale * 1.7; // Tall window
+    
+    // Calculate track-based offset to shift the window lower
+    qreal rwTrackOffset = 2.5; // Shift window lower by this many tracks - we can adjust Y position here
+    qreal rwVerticalShift = rwTrackOffset * m_trackSpacing; // Convert tracks to pixels
+    
     qreal rwX = center.x() - rwWidth/2;
-    qreal rwY = envelopeRect.bottom() - scale * 0.20 - rwHeight;
+    qreal rwY = envelopeRect.bottom() - scale * 0.20 - rwHeight + rwVerticalShift; // Apply the vertical shift
     QRectF rwRect(rwX, rwY, rwWidth, rwHeight);
     envelopePath.addRoundedRect(rwRect, rwWidth/2, rwWidth/2);
 
@@ -483,7 +488,7 @@ void FloppyDiskWidget::drawTracks(QPainter &painter, const QRectF& envelopeRect)
     // Calculate track spacing based on available space and number of tracks
     // We'll determine the max radius dynamically after drawing all tracks
     qreal initialMaxRadius = scale * 2.3; // Initial estimate
-    m_trackSpacing = 1.15 * ((initialMaxRadius - m_minTrackRadius) / numTracks);
+    m_trackSpacing = 1.1 * ((initialMaxRadius - m_minTrackRadius) / numTracks);
     
     painter.save();
     
