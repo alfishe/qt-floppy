@@ -321,7 +321,7 @@ void FloppyDiskWidget::drawEnvelope(QPainter &painter, const QRectF& envelopeRec
     qreal rwWidth = scale * 0.45; // Narrower window
     qreal rwHeight = scale * 1.7; // Tall window
     qreal rwX = center.x() - rwWidth/2;
-    qreal rwY = envelopeRect.bottom() - scale * 0.25 - rwHeight;
+    qreal rwY = envelopeRect.bottom() - scale * 0.20 - rwHeight;
     QRectF rwRect(rwX, rwY, rwWidth, rwHeight);
     envelopePath.addRoundedRect(rwRect, rwWidth/2, rwWidth/2);
 
@@ -474,11 +474,12 @@ void FloppyDiskWidget::drawTracks(QPainter &painter, const QRectF& envelopeRect)
     // Start tracks further from the hub to match screenshot
     qreal hubRadius = scale * 0.5; // 1.0" diameter hub
     
-    // Increase the inner radius to add 4-5 more circles gap from center
-    qreal minRadius = scale * 1.1; // Increased from 0.9 to 1.1 to add more space from center
-    qreal maxRadius = scale * 2.3; // Outer edge of disk
+    // Shift all tracks 10% closer to the center
+    qreal minRadius = scale * 0.8; // Decreased by 10% to shift tracks closer to center
+    qreal maxRadius = scale * 2.1; // Also decreased by ~10% to maintain proportions
     int numTracks = isDoubleDensity ? 80 : 40;
-    qreal trackSpacing = (maxRadius - minRadius) / numTracks;
+    // Increase track spacing by 20% to cover more area within the magnetic disk
+    qreal trackSpacing = 1.2 * ((maxRadius - minRadius) / numTracks);
     
     painter.save();
     
@@ -524,8 +525,8 @@ void FloppyDiskWidget::drawSectorBoundaries(QPainter &painter, const QRectF& env
     qreal scale = envelopeRect.width() / 5.25;
     
     // Sector lines should start at the same radius as tracks
-    qreal minRadius = scale * 0.6; // Match track starting radius
-    qreal maxRadius = scale * 2.3; // Outer edge of disk
+    qreal minRadius = scale * 0.8; // Match track starting radius in drawTracks
+    qreal maxRadius = scale * 2.1; // Match outer edge in drawTracks
     
     // Calculate index hole position (for reference)
     qreal indexHoleAngleDeg = INDEX_HOLE_ANGLE_DEG;
@@ -558,8 +559,8 @@ void FloppyDiskWidget::drawHighlightedSector(QPainter &painter, const QRectF& en
     qreal scale = envelopeRect.width() / 5.25;
     
     // Sector lines should start at the same radius as tracks
-    qreal minRadius = scale * 0.6; // Match track starting radius
-    qreal maxRadius = scale * 2.3; // Outer edge of disk
+    qreal minRadius = scale * 0.8; // Match track starting radius in drawTracks
+    qreal maxRadius = scale * 2.1; // Match outer edge in drawTracks
     
     // Calculate index hole position (for reference)
     qreal indexHoleAngleDeg = INDEX_HOLE_ANGLE_DEG;
@@ -657,9 +658,10 @@ void FloppyDiskWidget::drawHead(QPainter &painter, const QRectF& envelopeRect)
     QPointF center = envelopeRect.center();
     qreal scale = envelopeRect.width() / 5.25;
     qreal rwWidth = scale * 0.45; // Match the current narrower window width
-    qreal rwHeight = scale * 1.6; // Match the current taller window height
+    qreal rwHeight = scale * 1.7; // Match the current window height in drawEnvelope
     qreal rwX = center.x() - rwWidth/2;
-    qreal rwY = envelopeRect.bottom() - scale * 0.25 - rwHeight;
+    // Shifted 5% lower to match drawEnvelope
+    qreal rwY = envelopeRect.bottom() - scale * 0.15 - rwHeight;
     QRectF rwRect(rwX, rwY, rwWidth, rwHeight);
 
     // Calculate head position based on animation or track
@@ -690,9 +692,10 @@ void FloppyDiskWidget::drawHead(QPainter &painter, const QRectF& envelopeRect)
         trackRadius = (m_trackInnerRadius + m_trackOuterRadius) / 2.0;
     } else {
         // Otherwise, calculate the radius as before
-        qreal minRadius = scale * 1.1;  // Start tracks further from the center (1.1" from center)
-        qreal maxRadius = scale * 2.3;  // Outer edge of disk
-        qreal trackSpacing = (maxRadius - minRadius) / numTracks;
+        qreal minRadius = scale * 0.8;  // Match track starting radius in drawTracks
+        qreal maxRadius = scale * 2.1;  // Match outer edge in drawTracks
+        // Increase track spacing by 20% to cover more area within the magnetic disk
+        qreal trackSpacing = 1.2 * ((maxRadius - minRadius) / numTracks);
         
         // Calculate the track radius for the current track
         // Use the same formula as in drawTracks but invert the track numbering
