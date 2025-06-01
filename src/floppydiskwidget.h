@@ -40,6 +40,9 @@ public:
     int getCurrentSector() const;
     int getSectorCount() const;
 
+    // View control
+    void setFrontView(bool isFront);
+
 private slots:
     void animateHead();
     void animateSide();
@@ -83,6 +86,8 @@ private:
     int m_animationStep = 0;
     bool m_animationDirectionUp = true;
     qreal m_animationSpeed;
+
+    bool m_isFrontView = true; // New member variable to track view
 
     void drawDisk(QPainter &painter, const QRectF& envelopeRect);
     void drawTracks(QPainter &painter, const QRectF& envelopeRect);

@@ -33,6 +33,8 @@ void MainWindow::createConnections() {
 
     // Set default speed to 1x (index 5)
     ui->speedComboBox->setCurrentIndex(5);
+
+    connect(ui->actionToggleView, &QAction::toggled, this, &MainWindow::onToggleView);
 }
 
 void MainWindow::onPlayPauseClicked() {
@@ -79,6 +81,21 @@ void MainWindow::onSpeedChanged(int index) {
 
     // Update the animation speed in the floppy widget
     ui->floppyWidget->setAnimationSpeed(currentSpeed);
+}
+
+void MainWindow::onToggleView(bool checked)
+{
+    // 'checked' is true for Front view, false for Back view
+    // We will implement the view flipping in FloppyDiskWidget::paintEvent later.
+    // For now, just update the state in the widget.
+    ui->floppyWidget->setFrontView(checked);
+
+    // Update button text based on state
+    if (checked) {
+        ui->actionToggleView->setText("Front");
+    } else {
+        ui->actionToggleView->setText("Back");
+    }
 }
 
 void MainWindow::updateAnimation() {

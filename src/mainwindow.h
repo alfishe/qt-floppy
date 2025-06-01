@@ -23,6 +23,7 @@ private slots:
     void onResetClicked();
     void onSpeedChanged(int index);
     void updateAnimation();
+    void onToggleView(bool checked);
 
 private:
     Ui::MainWindow *ui;

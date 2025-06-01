@@ -61,6 +61,7 @@
    <addaction name="actionPlay"/>
    <addaction name="actionReset"/>
    <addaction name="separator"/>
+   <addaction name="actionToggleView"/>
    <widget class="QLabel" name="speedLabel">
     <property name="text">
      <string>Speed:</string>
@@ -124,6 +125,20 @@
    </property>
    <property name="toolTip">
     <string>Reset Animation</string>
+   </property>
+  </action>
+  <action name="actionToggleView">
+   <property name="text">
+    <string>Front / Back</string>
+   </property>
+   <property name="toolTip">
+    <string>Toggle between Front and Back views</string>
+   </property>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
    </property>
   </action>
  </widget>

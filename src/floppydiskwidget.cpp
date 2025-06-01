@@ -37,6 +37,7 @@ FloppyDiskWidget::FloppyDiskWidget(QWidget *parent)
     , m_animationSpeed(1.0)
     , m_minTrackRadius(0.0)
     , m_maxTrackRadius(0.0)
+    , m_isFrontView(true)
 {
     setMinimumSize(400, 400);
     
@@ -269,6 +270,14 @@ int FloppyDiskWidget::sectorCount() const {
     return m_sectorCount;
 }
 
+void FloppyDiskWidget::setFrontView(bool isFront)
+{
+    if (m_isFrontView != isFront) {
+        m_isFrontView = isFront;
+        update(); // Trigger a repaint to reflect the change
+    }
+}
+
 void FloppyDiskWidget::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
@@ -282,6 +291,16 @@ void FloppyDiskWidget::paintEvent(QPaintEvent *event)
     int y0 = (height() - side) / 2;
     QRectF floppyRect(x0, y0, side, side);
 
+    // Save the painter state before potentially flipping
+    painter.save();
+
+    if (!m_isFrontView) {
+        // Apply a vertical flip transformation for the back view
+        painter.translate(width() / 2.0, height() / 2.0);
+        painter.scale(-1.0, 1.0); // Corrected for horizontal flip
+        painter.translate(-width() / 2.0, -height() / 2.0);
+    }
+
     // Draw the envelope (jacket) with correct holes and notches
     drawEnvelope(painter, floppyRect);
 
@@ -294,6 +313,11 @@ void FloppyDiskWidget::paintEvent(QPaintEvent *event)
     
     // Finally draw the head
     drawHead(painter, floppyRect);
+
+    // Restore painter state before drawing status (which should not be flipped)
+    painter.restore();
+
+    // Draw status text (should not be flipped)
     drawStatus(painter);
 }
 
