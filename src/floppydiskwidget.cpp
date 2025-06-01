@@ -24,7 +24,7 @@ FloppyDiskWidget::FloppyDiskWidget(QWidget *parent)
     , rotationAngle(0)
     , indexPulseActive(false)
     , m_envelopeTransparency(1.0)
-    , m_sectorCount(1)
+    , m_sectorCount(16)  // Default to 16 sectors for standard floppy
 {
     setMinimumSize(400, 400);
 }
@@ -201,19 +201,28 @@ void FloppyDiskWidget::drawEnvelope(QPainter &painter, const QRectF& envelopeRec
     painter.drawEllipse(indexHoleCenter, envelopeIndexHoleRadius, envelopeIndexHoleRadius);
     painter.drawRoundedRect(rwRect, rwWidth/2, rwWidth/2);
 
-    // --- Mask for disk: only visible through center hole and read/write window ---
+    // --- Mask for disk: only visible through center hole, index hole, and read/write window ---
     QPainterPath diskMask;
     diskMask.addEllipse(center, hubRadius, hubRadius);
+    diskMask.addEllipse(indexHoleCenter, envelopeIndexHoleRadius, envelopeIndexHoleRadius);
     diskMask.addRoundedRect(rwRect, rwWidth/2, rwWidth/2);
     painter.save();
     painter.setClipPath(diskMask);
     drawDisk(painter, envelopeRect);
     
-    // Draw sector lines visible through the same holes
+    // Draw sector lines visible through the holes and write-protect notch
     QPainterPath sectorMask = diskMask;
+    
+    // Add the write-protect notch to the sector mask so sectors are visible there too
+    sectorMask.addRect(wpRect);
+    
+    // Create disk area as the whole disk circle
     qreal diskRadius = scale * 2.5; // 5" diameter
+    
     QPainterPath diskArea;
     diskArea.addEllipse(center, diskRadius, diskRadius);
+    
+    // Set the clip path to the intersection of the sector mask and full disk area
     painter.setClipPath(sectorMask.intersected(diskArea));
     drawSectors(painter, envelopeRect);
     painter.restore();
@@ -225,20 +234,29 @@ void FloppyDiskWidget::drawDisk(QPainter &painter, const QRectF& envelopeRect)
     qreal scale = envelopeRect.width() / 5.25;
     qreal diskRadius = scale * 2.5; // 5" diameter
 
-    // Draw disk
-    painter.setPen(QPen(Qt::black, 2));
-    painter.setBrush(QBrush(Qt::black));
-    painter.drawEllipse(center, diskRadius, diskRadius);
-
-    // --- Draw index hole on disk (rotating) ---
+    // Calculate disk index hole parameters - use same position as envelope index hole but apply rotation
     qreal diskIndexHoleRadialDist = envelopeRect.width() * INDEX_HOLE_RADIAL_PCT;
     qreal diskIndexHoleBaseAngleRad = qDegreesToRadians(INDEX_HOLE_ANGLE_DEG);
     qreal diskIndexHoleEffectiveAngleRad = diskIndexHoleBaseAngleRad + qDegreesToRadians(rotationAngle);
     QPointF diskIndexHoleCenter = center + QPointF(diskIndexHoleRadialDist * qCos(diskIndexHoleEffectiveAngleRad),
-                                                   diskIndexHoleRadialDist * qSin(diskIndexHoleEffectiveAngleRad));
+                                                  diskIndexHoleRadialDist * qSin(diskIndexHoleEffectiveAngleRad));
     qreal diskIndexHoleRadius = envelopeRect.width() * DISK_INDEX_HOLE_RADIUS_PCT;
-    painter.setBrush(QBrush(Qt::white));
-    painter.drawEllipse(diskIndexHoleCenter, diskIndexHoleRadius, diskIndexHoleRadius);
+    
+    // Create disk path with index hole cutout
+    QPainterPath diskPath;
+    diskPath.addEllipse(center, diskRadius, diskRadius);
+    
+    // Create index hole path
+    QPainterPath indexHolePath;
+    indexHolePath.addEllipse(diskIndexHoleCenter, diskIndexHoleRadius, diskIndexHoleRadius);
+    
+    // Subtract index hole from disk path
+    QPainterPath finalDiskPath = diskPath.subtracted(indexHolePath);
+    
+    // Draw disk with index hole cutout
+    painter.setPen(QPen(Qt::black, 2));
+    painter.setBrush(QBrush(Qt::black));
+    painter.drawPath(finalDiskPath);
 }
 
 void FloppyDiskWidget::drawTracks(QPainter &painter, const QRectF& envelopeRect)
@@ -257,15 +275,36 @@ void FloppyDiskWidget::drawTracks(QPainter &painter, const QRectF& envelopeRect)
 void FloppyDiskWidget::drawSectors(QPainter &painter, const QRectF& envelopeRect)
 {
     QPointF center = envelopeRect.center();
-    qreal maxRadius = envelopeRect.width() * 0.48;
+    qreal scale = envelopeRect.width() / 5.25;
+    
+    // Calculate precise dimensions based on actual disk geometry
+    qreal maxRadius = envelopeRect.width() * 0.48;  // Outer edge of disk
+    
+    // The gray circle represents the non-data area around the hub
+    // On a real 3.5" floppy, data starts at about 0.8-0.9" from center
+    // Adjust to be 10% longer than previous setting (which was scale * 1.0)
+    qreal minRadius = scale * 0.9;  // Start just at the edge of the gray circle
+    
     painter.setPen(QPen(Qt::red, 1));
     int sectors = m_sectorCount;
-    for (int i = 1; i < sectors; i++) {
-        double angleDeg = i * (360.0 / sectors) + rotationAngle;
+    
+    // Calculate the index hole angle to start sectors from there
+    qreal indexHoleAngleRad = qDegreesToRadians(INDEX_HOLE_ANGLE_DEG);
+    qreal indexHoleAngleDeg = INDEX_HOLE_ANGLE_DEG;
+    
+    // Draw all sector lines (from 0 to sectors-1)
+    for (int i = 0; i < sectors; i++) {
+        // Start from index hole position and distribute evenly
+        double angleDeg = indexHoleAngleDeg + i * (360.0 / sectors) + rotationAngle;
         double angleRad = qDegreesToRadians(angleDeg);
-        painter.drawLine(center,
-                        QPointF(center.x() + maxRadius * std::cos(angleRad),
-                                center.y() + maxRadius * std::sin(angleRad)));
+        
+        // Draw line from inner radius to outer radius with precise dimensions
+        QPointF innerPoint(center.x() + minRadius * qCos(angleRad),
+                          center.y() + minRadius * qSin(angleRad));
+        QPointF outerPoint(center.x() + maxRadius * qCos(angleRad),
+                          center.y() + maxRadius * qSin(angleRad));
+        
+        painter.drawLine(innerPoint, outerPoint);
     }
 }
 
